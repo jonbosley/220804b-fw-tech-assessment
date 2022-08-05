@@ -3,6 +3,21 @@
 #include <stdio.h>
 #include <string.h>
 
+// The requirements did not specify a maximum size of the data buffer.
+// The test code doesn't go any higher than 4 bytes, but it could go higher.
+// At this point, I am supporting a larger number of bytes, limited by a bit offset of 255
+// Because I don't know of the alignment of the bytes or how close to the end of the memory space,
+// I am choosing to check them a byte at a time. It might be slightly faster to use cast into
+// 4-byte words, but I don't think that the complexity nor memory-edge conditions warrant it,
+// unless this is called many, many times in performance-critical sections of code.
+// Some simplifications could be done if the max bit offset were known.
+
+// The get, set, and clear functions have some common code. I considered creating a helper function
+// that would perform the separate operations, (so I could keep the code outside of the "if" 
+// block common). However, the amount of code did not seem worth creating the helper functions, 
+// especially since the get operation is significantly different than the set and clear operations 
+// (no return values for set/clear)
+
 // #define VERBOSE
 
 typedef enum {
@@ -10,7 +25,9 @@ typedef enum {
   STATUS_ERROR = 1,
 } STATUS_CODE;
 
-#define BITS_IN_A_BYTE 8
+#define BITS_IN_A_BYTE        8
+#define SINGLE_BYTE_BITMASK   0x07
+#define SINGLE_BYTE_BITSHIFT  3
 
 // Assumes little endian
 void print_bits(void const * const ptr, size_t const size) {
@@ -39,7 +56,23 @@ void print_bits(void const * const ptr, size_t const size) {
  * @param result - binary value to store the result
  * @return STATUS_CODE - STATUS_SUCCESS if request okay, STATUS_ERROR if out of bounds request
  */
-// TODO: define get_bit function
+STATUS_CODE get_bit(uint8_t *data, uint8_t byte_length, uint8_t bit_offset, bool *result)
+{
+	STATUS_CODE rc = STATUS_ERROR;
+
+	// Determine the bit in which byte we are addressing.
+	uint8_t byte_offset = bit_offset >> SINGLE_BYTE_BITSHIFT;
+	uint8_t bit_offset_in_byte = 1 << (bit_offset & SINGLE_BYTE_BITMASK);
+
+	// Only perform operations if the bit offset is within the data length
+	if (bit_offset < byte_length * BITS_IN_A_BYTE)
+	{
+		// Check the correct bit in the correct byte and change to boolean
+		*result = !!(data[byte_offset] & bit_offset_in_byte);
+		rc = STATUS_SUCCESS;
+	}
+	return rc;
+}
 
 /**
  * @brief Sets the bit at the given offset to 1.
@@ -50,7 +83,23 @@ void print_bits(void const * const ptr, size_t const size) {
  * @param bit_offset - the offset of the bit to set (0 is lsb)
  * @return STATUS_CODE - STATUS_SUCCESS if request okay, STATUS_ERROR if out of bounds request
  */
-// TODO: define set_bit function
+STATUS_CODE set_bit(uint8_t *data, uint8_t byte_length, uint8_t bit_offset)
+{
+	STATUS_CODE rc = STATUS_ERROR;
+	
+	uint8_t byte_offset = bit_offset >> SINGLE_BYTE_BITSHIFT;
+	uint8_t bit_offset_in_byte = 1 << (bit_offset & SINGLE_BYTE_BITMASK);
+
+	// Only perform operations if the bit offset is within the data length
+	if (bit_offset < byte_length * BITS_IN_A_BYTE)
+	{
+		// Set the correct bit in the correct byte
+		data[byte_offset] |= bit_offset_in_byte;
+		rc = STATUS_SUCCESS;
+	}
+	return rc;
+}
+
 
 /**
  * @brief Sets the bit at the given offset to 0.
@@ -61,7 +110,22 @@ void print_bits(void const * const ptr, size_t const size) {
  * @param bit_offset - the offset of the bit to clear (0 is lsb)
  * @return STATUS_CODE - STATUS_SUCCESS if request okay, STATUS_ERROR if out of bounds request
  */
-// TODO: define clear_bit function
+STATUS_CODE clear_bit(uint8_t *data, uint8_t byte_length, uint8_t bit_offset)
+{
+	STATUS_CODE rc = STATUS_ERROR;
+	
+	uint8_t byte_offset = bit_offset >> SINGLE_BYTE_BITSHIFT;
+	uint8_t bit_offset_in_byte = 1 << (bit_offset & SINGLE_BYTE_BITMASK);
+	
+	// Only perform operations if the bit offset is within the data length
+	if (bit_offset < byte_length * BITS_IN_A_BYTE)
+	{
+		// Clear the correct bit in the correct byte
+		data[byte_offset] &= ~bit_offset_in_byte;
+		rc = STATUS_SUCCESS;
+	}
+	return rc;
+}
 
 void get_bit_test() {
   uint8_t pass = 0;
